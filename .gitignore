@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.env
+/deeptraace.egg-info
+build/
+dist/
+*.log
+env/

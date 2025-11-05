@@ -1,0 +1,6 @@
+scapy
+numpy
+torch
+redis
+faiss-cpu
+langchain
