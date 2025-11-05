@@ -54,7 +54,7 @@ The `main.py` script is the main entry point for running the packet capture and 
 To capture packets from a live network interface, run the following command from within the `nix-shell`:
 
 ```bash
-sudo PYTHONPATH=$PYTHONPATH python3 main.py
+sudo PYTHONPATH=$PYTHONPATH python3 main.py -i wlo1
 ```
 
 *   You may need to change the `interface` variable in `main.py` to match your system's network interface (e.g., `eth0`, `enp0s3`).

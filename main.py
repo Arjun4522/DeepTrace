@@ -1,9 +1,16 @@
-from deeptraace.capture import PacketCapture
-from deeptraace.features import FlowExtractor
+from deeptrace.capture import PacketCapture
+from deeptrace.features import FlowExtractor
 import json
+import argparse
+import os, datetime
 
 def main():
-    interface = "wlo1" # Changed to wlo1 based on user's output
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="DeepTrace: Live packet capture and feature extraction.")
+    parser.add_argument("-i", "--interface", required=True, help="Network interface to capture packets from (e.g., eth0, wlo1)")
+    args = parser.parse_args()
+
+    interface = args.interface # Get interface from arguments
     
     print(f"Testing live packet capture on interface: {interface}")
     
@@ -27,6 +34,26 @@ def main():
             return
 
         print(f"Extracted {len(flows)} flows.")
+
+        # --- Save dataset ---
+        output_dir = "train"
+        os.makedirs(output_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        outfile = os.path.join(output_dir, f"flows_{timestamp}.jsonl")
+
+        with open(outfile, "a") as f:
+            for flow in flows:
+                flow_dict = {
+                    "flow_id": flow.flow_id,
+                    "temporal": flow.temporal,
+                    "statistical": flow.statistical,
+                    "protocol": flow.protocol,
+                    "timestamp": flow.timestamp
+                }
+                json.dump(flow_dict, f)
+                f.write("\n")
+
+        print(f"\n[+] Saved {len(flows)} flows to {outfile}")
 
         # 3. Print extracted features for each flow in the new structured format
         for i, flow in enumerate(flows):
