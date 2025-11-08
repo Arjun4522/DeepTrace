@@ -1,6 +1,6 @@
 # DeepTrace: Deep Packet Inspection–based Behavioral Flow Embedding System
 
-DeepTrace is a Python-based system for deep packet inspection (DPI) and behavioral flow embedding. It captures network packets, extracts detailed features from the flows, and is designed to generate numerical embeddings for anomaly detection, traffic analysis, and other network security applications.
+DeepTrace is a system for deep packet inspection (DPI) and behavioral flow embedding. It captures network packets, extracts detailed features from the flows, and is designed to generate numerical embeddings for anomaly detection, traffic analysis, and other network security applications.
 
 ## Features
 
