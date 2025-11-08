@@ -45,6 +45,16 @@ This project is developed on NixOS and uses a `shell.nix` file to provide a cons
     nix-shell
     ```
 
+## Running Tests
+
+To run the unit and system tests, execute the following command from the root directory of the project within the `nix-shell`:
+
+```bash
+python3 -m unittest discover -s tests
+```
+
+This command will discover and run all test cases located in the `tests/unit` and `tests/system` directories.
+
 ## Usage
 
 The `main.py` script is the main entry point for running the packet capture and feature extraction process.
@@ -54,7 +64,7 @@ The `main.py` script is the main entry point for running the packet capture and 
 To capture packets from a live network interface, run the following command from within the `nix-shell`:
 
 ```bash
-sudo PYTHONPATH=$PYTHONPATH python3 main.py -i wlo1
+sudo (PYTHONPATH=$PYTHONPATH) python3 main.py -i wlo1
 ```
 
 *   You may need to change the `interface` variable in `main.py` to match your system's network interface (e.g., `eth0`, `enp0s3`).
