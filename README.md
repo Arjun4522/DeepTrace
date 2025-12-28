@@ -1,6 +1,6 @@
 # DeepTrace: Deep Packet Inspection–based Behavioral Flow Embedding System
 
-DeepTrace is a real-time network traffic analysis system that combines deep packet inspection (DPI) with transformer-based behavioral embeddings. It captures network packets, extracts detailed flow features, generates semantic embeddings, and stores them in a vector database for similarity search, anomaly detection, and RAG-powered traffic analysis.
+DeepTrace is a system for deep packet inspection (DPI) and behavioral flow embedding. It captures network packets, extracts detailed features from the flows, and is designed to generate numerical embeddings for anomaly detection, traffic analysis, and other network security applications.
 
 ## Features
 
