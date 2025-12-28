@@ -1,6 +1,6 @@
 # DeepTrace: Deep Packet Inspection–based Behavioral Flow Embedding System
 
-DeepTrace is a system for deep packet inspection (DPI) and behavioral flow embedding. It captures network packets, extracts detailed features from the flows, and is designed to generate numerical embeddings for anomaly detection, traffic analysis, and other network security applications.
+DeepTrace is a system for deep packet inspection (DPI) and behavioral flow embedding. It captures network packets, extracts detailed features from the flows, and generates numerical embeddings for anomaly detection, traffic analysis, and other network security applications.
 
 ## Features
 
@@ -14,7 +14,7 @@ DeepTrace is a system for deep packet inspection (DPI) and behavioral flow embed
 *   **Real-time Vector Database:** FAISS-based vector storage for fast similarity search and retrieval of network flows.
 *   **Streaming Pipeline:** Continuous packet capture with real-time embedding generation and indexing.
 *   **Docker-based Traffic Generation Lab:** Complete lab environment for generating diverse network traffic patterns for model training.
-*   **Web Dashboard:** Modern React-based frontend for real-time monitoring and visualization.
+*   **CLI Interface:** Interactive command-line interface for vector store querying and analysis.
 *   **Extensible Architecture:** The modular design allows for easy extension and customization.
 
 ## Architecture
@@ -27,8 +27,7 @@ The DeepTrace system is composed of the following key components:
 4.  **Vector Storage (`storage.py`):** FAISS-based vector database for storing flow embeddings with metadata, enabling fast similarity search and retrieval.
 5.  **Streaming Pipeline (`main.py`):** Real-time pipeline that continuously captures packets, generates embeddings, and updates the vector store.
 6.  **Traffic Generation Lab (`traffic_lab/`):** Docker-based environment with containers and scripts for generating diverse network traffic patterns.
-7.  **Web Dashboard (`web/`):** Modern React/Vite frontend with real-time monitoring, analytics, and flow visualization.
-8.  **CLI (`cli.py`):** Command-line interface for interacting with the DeepTrace system.
+7.  **CLI (`cli.py`):** Interactive command-line interface for vector store querying and analysis.
 
 ## Setup and Installation
 
@@ -62,18 +61,7 @@ This project is developed on NixOS and uses a `shell.nix` file to provide a cons
     pip install -r requirements.txt
     ```
 
-4.  **Web Dashboard Setup**
-    
-    Navigate to the web directory and install Node.js dependencies:
-    ```bash
-    cd web
-    npm install
-    ```
-    
-    Start the development server:
-    ```bash
-    npm run dev
-    ```
+
 
 ## Usage
 
@@ -225,12 +213,7 @@ To use the Docker-based traffic generation lab:
         -c ../models/checkpoints/model_epoch_50.pth
     ```
 
-5.  Monitor traffic in the web dashboard:
-    ```bash
-    cd ../web
-    npm run dev
-    ```
-    Open http://localhost:3000 to view real-time analytics
+
 
 6.  Stop containers when finished:
     ```bash
@@ -330,48 +313,7 @@ The trained model supports:
 
 Trained checkpoints are available in `models/checkpoints/` with `model_epoch_50.pth` being the recommended production model.
 
-## Web Dashboard
 
-The DeepTrace web dashboard provides a modern interface for real-time network monitoring and analysis.
-
-### Dashboard Features
-
-- **Real-time Statistics**: Live updates of total flows, packets, bytes, and average flow size
-- **Protocol Distribution**: Visual breakdown of network protocols with progress bars
-- **Application Protocol Analysis**: Top application protocols with usage statistics
-- **Recent Flows Table**: Detailed view of recent network flows with source/destination information
-- **Live Indicators**: Real-time updates with live status indicators
-- **Responsive Design**: Works on desktop and mobile devices
-
-### Web Architecture
-
-- **Frontend**: React 18 with Vite for fast development
-- **Styling**: Tailwind CSS for responsive design
-- **State Management**: React Query for data fetching and caching
-- **Icons**: Lucide React for consistent iconography
-- **Real-time Updates**: WebSocket connections for live data
-- **API Integration**: RESTful endpoints for statistics and flow data
-
-### Getting Started with Web Dashboard
-
-1. Navigate to the web directory:
-   ```bash
-   cd web
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
-4. Open your browser to http://localhost:3000
-
-5. Ensure the backend is running to provide data to the dashboard
 
 ## Vector Store and Similarity Search
 
@@ -395,7 +337,8 @@ deeptrace/
 │   ├── features.py       # Flow and feature extraction
 │   ├── model.py          # Embedding model and inference
 │   ├── storage.py        # FAISS vector store
-│   └── cli.py            # CLI interface for vector store query
+│   ├── cli.py            # CLI interface for vector store query
+│   └── debug.py          # Debugging utilities
 ├── models/
 │   ├── deeptrace.py      # Model training script
 │   ├── deeptrace.ipynb   # Training notebook
@@ -411,17 +354,7 @@ deeptrace/
 │       ├── gen_scan.sh
 │       ├── gen_exfil.sh
 │       └── generate_all.sh
-├── web/                     # React web dashboard
-│   ├── src/
-│   │   ├── components/      # React components
-│   │   ├── contexts/       # React contexts
-│   │   ├── pages/         # Page components
-│   │   ├── App.jsx         # Main app component
-│   │   └── main.jsx        # Entry point
-│   ├── app.py              # FastAPI backend
-│   ├── package.json        # Node.js dependencies
-│   ├── vite.config.js      # Vite configuration
-│   └── tailwind.config.js  # Tailwind CSS config
+
 ├── train/                     # Training data (JSONL)
 ├── vector_store/              # FAISS index and metadata
 │   ├── faiss.index
@@ -497,7 +430,7 @@ cd traffic_lab && docker-compose up -d
 ls -lh models/checkpoints/model_epoch_50.pth
 
 # Check Python environment has all dependencies
-pip install torch scapy numpy faiss-cpu
+pip install -r requirements.txt
 ```
 
 ## Future Enhancements
@@ -510,7 +443,7 @@ pip install torch scapy numpy faiss-cpu
 - [ ] Export to multiple formats (Parquet, Arrow, etc.)
 - [ ] Real-time alerting system
 - [ ] Historical data analysis
-- [ ] Custom dashboard widgets
+- [ ] Web dashboard for visualization
 - [ ] User authentication and authorization
 
 
