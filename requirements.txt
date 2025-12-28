@@ -4,4 +4,8 @@ torch
 redis
 faiss-cpu
 langchain
-redis
+flask
+flask-cors
+flask-socketio
+python-socketio
+eventlet
