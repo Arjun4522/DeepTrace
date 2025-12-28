@@ -9,3 +9,6 @@ build/
 dist/
 *.log
 env/
+Docs/
+vector_store/
+

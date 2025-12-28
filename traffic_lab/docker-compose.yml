@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  # Normal client/server containers
+  web_server:
+    image: nginx:alpine
+    networks:
+      - deeptrace_net
+    ports:
+      - "8080:80"
+
+  web_client:
+    image: curlimages/curl:latest
+    networks:
+      - deeptrace_net
+    depends_on:
+      - web_server
+    entrypoint: ["tail", "-f", "/dev/null"]
+
+  dns_server:
+    image: andyshinn/dnsmasq:latest
+    networks:
+      - deeptrace_net
+    cap_add:
+      - NET_ADMIN
+    command: --log-facility=-
+
+  dns_client:
+    image: ubuntu:latest
+    networks:
+      - deeptrace_net
+    depends_on:
+      - dns_server
+    entrypoint: ["tail", "-f", "/dev/null"]
+
+  file_server:
+    image: atmoz/sftp:latest
+    networks:
+      - deeptrace_net
+    volumes:
+      - ./data/sftp:/home/foo/upload
+    ports:
+      - "2222:22"
+    environment:
+      - PASSWORD=pass
+
+  file_client:
+    image: curlimages/curl:latest
+    networks:
+      - deeptrace_net
+    depends_on:
+      - file_server
+    entrypoint: ["tail", "-f", "/dev/null"]
+
+  # Streaming & Bursty traffic containers
+  traffic_gen1:
+    image: networkstatic/iperf3:latest
+    networks:
+      - deeptrace_net
+    ports:
+      - "5201:5201"
+    command: -s
+
+  traffic_gen2:
+    image: networkstatic/iperf3:latest
+    networks:
+      - deeptrace_net
+    depends_on:
+      - traffic_gen1
+    entrypoint: ["tail", "-f", "/dev/null"]
+
+  # Anomalous traffic containers
+  scanner:
+    image: instrumentisto/nmap:latest
+    networks:
+      - deeptrace_net
+    entrypoint: ["tail", "-f", "/dev/null"]
+
+  flooder:
+    image: ubuntu:latest
+    networks:
+      - deeptrace_net
+    entrypoint: ["tail", "-f", "/dev/null"]
+    privileged: true
+
+  dns_abuse:
+    image: curlimages/curl:latest
+    networks:
+      - deeptrace_net
+    depends_on:
+      - dns_server
+    entrypoint: ["tail", "-f", "/dev/null"]
+
+  exfil_client:
+    image: python:3.9-alpine
+    networks:
+      - deeptrace_net
+    entrypoint: ["tail", "-f", "/dev/null"]
+
+networks:
+  deeptrace_net:
+    driver: bridge
