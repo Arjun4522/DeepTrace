@@ -8,7 +8,7 @@ import argparse
 import json
 import sys
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 import numpy as np
 
 from deeptrace.storage import VectorStore
@@ -50,9 +50,10 @@ class QueryEngine:
         
         print(f"{Colors.GREEN}✓ Ready!{Colors.ENDC}\n")
         
-    def print_flow(self, flow_data: Dict, index: int = None, distance: float = None):
-        """Pretty print a flow"""
+    def print_flow(self, flow_data: Dict, index: Optional[int] = None, distance: Optional[float] = None, verbose: bool = False):
+        """Pretty print a flow with optional verbose output"""
         flow_id = flow_data.get('flow_id', {})
+        temporal = flow_data.get('temporal', {})
         stats = flow_data.get('statistical', {})
         proto = flow_data.get('protocol', {})
         timestamp = flow_data.get('timestamp', 'Unknown')
@@ -74,6 +75,7 @@ class QueryEngine:
         
         print(f"{Colors.BOLD}Connection:{Colors.ENDC}")
         print(f"  {src_ip}:{src_port} → {dst_ip}:{dst_port}")
+        print(f"  Protocol: {flow_id.get('protocol', 'N/A')}")
         
         # Protocol info
         print(f"\n{Colors.BOLD}Protocol:{Colors.ENDC}")
@@ -88,11 +90,26 @@ class QueryEngine:
         print(f"  Total bytes:  {stats.get('total_bytes', 0):,.0f}")
         print(f"  Packets:      {stats.get('packet_count', 0):.0f}")
         print(f"  Avg pkt size: {stats.get('mean_pkt_size', 0):.1f} bytes")
+        print(f"  Std pkt size: {stats.get('std_pkt_size', 0):.1f} bytes")
+        print(f"  Mean Δt:      {stats.get('mean_Δt', 0):.3f}s")
+        print(f"  Std Δt:       {stats.get('std_Δt', 0):.3f}s")
+        print(f"  Mean entropy: {stats.get('mean_entropy', 0):.3f}")
+        print(f"  Std entropy:  {stats.get('std_entropy', 0):.3f}")
         print(f"  Byte ratio:   {stats.get('byte_ratio', 0):.2f}")
-        print(f"  Entropy:      {stats.get('entropy_mean', 0):.3f} (±{stats.get('entropy_std', 0):.3f})")
         
-        # Timestamp
-        print(f"\n{Colors.BOLD}Captured:{Colors.ENDC} {timestamp}")
+        # Temporal features (verbose mode)
+        if verbose:
+            print(f"\n{Colors.BOLD}Temporal Features:{Colors.ENDC}")
+            for feature_type in ['Δt', 'size', 'direction', 'entropy']:
+                values = temporal.get(feature_type, [])
+                if values:
+                    print(f"  {feature_type}: {values[:10]}..." if len(values) > 10 else f"  {feature_type}: {values}")
+        
+        # System metadata
+        print(f"\n{Colors.BOLD}System:{Colors.ENDC}")
+        print(f"  Captured:    {timestamp}")
+        print(f"  Indexed at:  {flow_data.get('_indexed_at', 'N/A')}")
+        print(f"  Internal ID: {flow_data.get('_id', 'N/A')}")
     
     def list_all(self, limit: int = 10):
         """List all flows in the store"""
@@ -122,14 +139,14 @@ class QueryEngine:
         if total > limit:
             print(f"\n... and {total - limit} more flows")
     
-    def show_flow(self, index: int):
+    def show_flow(self, index: int, verbose: bool = False):
         """Show detailed information for a specific flow"""
         if index < 0 or index >= self.store.total_flows:
             print(f"{Colors.RED}Error: Flow index out of range (0-{self.store.total_flows-1}){Colors.ENDC}")
             return
         
         flow_data = self.store.metadata[index]
-        self.print_flow(flow_data, index=index)
+        self.print_flow(flow_data, index=index, verbose=verbose)
     
     def search_by_ip(self, ip: str, k: int = 10):
         """Search flows by IP address"""
@@ -334,6 +351,71 @@ class QueryEngine:
         
         print(f"\n{Colors.BOLD}{'='*70}{Colors.ENDC}\n")
     
+    def show_temporal_features(self, index: int):
+        """Show detailed temporal features for a specific flow"""
+        if index < 0 or index >= self.store.total_flows:
+            print(f"{Colors.RED}Error: Flow index out of range (0-{self.store.total_flows-1}){Colors.ENDC}")
+            return
+        
+        flow_data = self.store.metadata[index]
+        temporal = flow_data.get('temporal', {})
+        
+        print(f"\n{Colors.BOLD}{Colors.CYAN}{'─'*70}")
+        print(f"Temporal Features - Flow #{index}")
+        print(f"{'─'*70}{Colors.ENDC}\n")
+        
+        for feature_type in ['Δt', 'size', 'direction', 'entropy']:
+            values = temporal.get(feature_type, [])
+            if values:
+                print(f"{Colors.BOLD}{feature_type}:{Colors.ENDC}")
+                print(f"  Values: {values}")
+                print(f"  Count:  {len(values)}")
+                if values:
+                    print(f"  First:  {values[0]}")
+                    print(f"  Last:   {values[-1]}")
+                print()
+        
+        if not temporal:
+            print(f"{Colors.YELLOW}No temporal features available{Colors.ENDC}")
+    
+    def show_full_metadata(self, index: int):
+        """Show complete metadata for a specific flow"""
+        if index < 0 or index >= self.store.total_flows:
+            print(f"{Colors.RED}Error: Flow index out of range (0-{self.store.total_flows-1}){Colors.ENDC}")
+            return
+        
+        flow_data = self.store.metadata[index]
+        
+        print(f"\n{Colors.BOLD}{Colors.CYAN}{'─'*70}")
+        print(f"Complete Metadata - Flow #{index}")
+        print(f"{'─'*70}{Colors.ENDC}\n")
+        
+        print(f"{Colors.BOLD}Flow Identification:{Colors.ENDC}")
+        flow_id = flow_data.get('flow_id', {})
+        for key, value in flow_id.items():
+            print(f"  {key}: {value}")
+        
+        print(f"\n{Colors.BOLD}Temporal Features:{Colors.ENDC}")
+        temporal = flow_data.get('temporal', {})
+        for key, values in temporal.items():
+            if values:
+                print(f"  {key}: {values[:5]}..." if len(values) > 5 else f"  {key}: {values}")
+        
+        print(f"\n{Colors.BOLD}Statistical Features:{Colors.ENDC}")
+        stats = flow_data.get('statistical', {})
+        for key, value in stats.items():
+            print(f"  {key}: {value}")
+        
+        print(f"\n{Colors.BOLD}Protocol Information:{Colors.ENDC}")
+        proto = flow_data.get('protocol', {})
+        for key, value in proto.items():
+            print(f"  {key}: {value}")
+        
+        print(f"\n{Colors.BOLD}System Metadata:{Colors.ENDC}")
+        print(f"  _id: {flow_data.get('_id', 'N/A')}")
+        print(f"  _indexed_at: {flow_data.get('_indexed_at', 'N/A')}")
+        print(f"  timestamp: {flow_data.get('timestamp', 'N/A')}")
+    
     def _reconstruct_flow(self, flow_data: Dict) -> Optional[Flow]:
         """Reconstruct a Flow object from stored metadata"""
         try:
@@ -365,6 +447,9 @@ class QueryEngine:
         print("Commands:")
         print("  list [N]              - List all flows (limit N, default 10)")
         print("  show <index>          - Show detailed flow information")
+        print("  verbose <index>       - Show flow with temporal features")
+        print("  temporal <index>      - Show detailed temporal features")
+        print("  metadata <index>      - Show complete metadata")
         print("  ip <address>          - Search by IP address")
         print("  port <number>         - Search by port number")
         print("  protocol <name>       - Search by protocol (TCP/UDP/HTTPS/etc)")
@@ -392,6 +477,9 @@ class QueryEngine:
                     print("\nCommands:")
                     print("  list [N]              - List flows")
                     print("  show <index>          - Show flow details")
+                    print("  verbose <index>       - Show flow with temporal features")
+                    print("  temporal <index>      - Show detailed temporal features")
+                    print("  metadata <index>      - Show complete metadata")
                     print("  ip <address>          - Search by IP")
                     print("  port <number>         - Search by port")
                     print("  protocol <name>       - Search by protocol")
@@ -447,6 +535,24 @@ class QueryEngine:
                 elif command == 'stats':
                     self.show_statistics()
                 
+                elif command == 'verbose':
+                    if len(parts) < 2:
+                        print(f"{Colors.RED}Usage: verbose <index>{Colors.ENDC}")
+                    else:
+                        self.show_flow(int(parts[1]), verbose=True)
+                
+                elif command == 'temporal':
+                    if len(parts) < 2:
+                        print(f"{Colors.RED}Usage: temporal <index>{Colors.ENDC}")
+                    else:
+                        self.show_temporal_features(int(parts[1]))
+                
+                elif command == 'metadata':
+                    if len(parts) < 2:
+                        print(f"{Colors.RED}Usage: metadata <index>{Colors.ENDC}")
+                    else:
+                        self.show_full_metadata(int(parts[1]))
+                
                 else:
                     print(f"{Colors.RED}Unknown command: {command}{Colors.ENDC}")
                     print("Type 'help' for available commands")
@@ -472,6 +578,15 @@ Examples:
   # Show statistics
   python3 query_store.py -s ./vector_store --stats
 
+  # Show flow details
+  python3 query_store.py -s ./vector_store --show 5
+
+  # Show flow with temporal features
+  python3 query_store.py -s ./vector_store --verbose 5
+
+  # Show complete metadata
+  python3 query_store.py -s ./vector_store --metadata 5
+
   # Search by IP
   python3 query_store.py -s ./vector_store --ip 192.168.1.100
 
@@ -494,6 +609,9 @@ Examples:
     parser.add_argument('--stats', action='store_true', help='Show statistics and exit')
     parser.add_argument('--list', type=int, metavar='N', help='List N flows and exit')
     parser.add_argument('--show', type=int, metavar='INDEX', help='Show flow at index')
+    parser.add_argument('--verbose', type=int, metavar='INDEX', help='Show flow with temporal features')
+    parser.add_argument('--temporal', type=int, metavar='INDEX', help='Show detailed temporal features')
+    parser.add_argument('--metadata', type=int, metavar='INDEX', help='Show complete metadata')
     parser.add_argument('--ip', metavar='ADDRESS', help='Search by IP address')
     parser.add_argument('--port', type=int, metavar='PORT', help='Search by port')
     parser.add_argument('--protocol', metavar='NAME', help='Search by protocol')
@@ -513,6 +631,12 @@ Examples:
             engine.list_all(args.list)
         elif args.show is not None:
             engine.show_flow(args.show)
+        elif args.verbose is not None:
+            engine.show_flow(args.verbose, verbose=True)
+        elif args.temporal is not None:
+            engine.show_temporal_features(args.temporal)
+        elif args.metadata is not None:
+            engine.show_full_metadata(args.metadata)
         elif args.ip:
             engine.search_by_ip(args.ip, args.k)
         elif args.port:

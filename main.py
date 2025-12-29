@@ -16,12 +16,26 @@ import threading
 from queue import Queue
 
 
-def basic_mode(interface, packet_count=0):
+def basic_mode(interface, packet_count=0, redis_host=None, redis_port=6379, redis_stream="flows:extracted"):
     """
-    Basic mode: Capture packets once, extract flows, and save to JSONL.
-    This is the original functionality.
+    Basic mode: Capture packets once, extract flows, and save to Redis stream.
+    Maintains backward compatibility with JSONL files.
     """
     print(f"Running in BASIC mode on interface: {interface}")
+    
+    # Initialize Redis if enabled
+    redis_client = None
+    redis_enabled = redis_host is not None
+    
+    if redis_enabled:
+        try:
+            import redis
+            redis_client = redis.Redis(host=redis_host, port=redis_port)
+            redis_client.ping()
+            print(f"✓ Redis enabled: {redis_host}:{redis_port} → {redis_stream}")
+        except Exception as e:
+            print(f"⚠️ Redis connection failed: {e} - falling back to JSONL")
+            redis_enabled = False
     
     try:
         # 1. Capture packets
@@ -45,12 +59,10 @@ def basic_mode(interface, packet_count=0):
         print(f"Extracted {len(flows)} flows.")
 
         # 3. Save dataset
-        output_dir = "train"
-        os.makedirs(output_dir, exist_ok=True)
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        outfile = os.path.join(output_dir, f"flows_{timestamp}.jsonl")
-
-        with open(outfile, "a") as f:
+        if redis_enabled:
+            # Save to Redis stream
+            print(f"Saving {len(flows)} flows to Redis stream '{redis_stream}'...")
+            
             for flow in flows:
                 flow_dict = {
                     "flow_id": flow.flow_id,
@@ -59,10 +71,34 @@ def basic_mode(interface, packet_count=0):
                     "protocol": flow.protocol,
                     "timestamp": flow.timestamp
                 }
-                json.dump(flow_dict, f)
-                f.write("\n")
+                
+                redis_client.xadd(
+                    redis_stream,
+                    {"flow": json.dumps(flow_dict)},
+                    maxlen=10000  # Keep last 10,000 flows
+                )
+            
+            print(f"\n[+] Saved {len(flows)} flows to Redis stream '{redis_stream}'")
+        else:
+            # Fallback to JSONL files
+            output_dir = "train"
+            os.makedirs(output_dir, exist_ok=True)
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            outfile = os.path.join(output_dir, f"flows_{timestamp}.jsonl")
 
-        print(f"\n[+] Saved {len(flows)} flows to {outfile}")
+            with open(outfile, "a") as f:
+                for flow in flows:
+                    flow_dict = {
+                        "flow_id": flow.flow_id,
+                        "temporal": flow.temporal,
+                        "statistical": flow.statistical,
+                        "protocol": flow.protocol,
+                        "timestamp": flow.timestamp
+                    }
+                    json.dump(flow_dict, f)
+                    f.write("\n")
+
+            print(f"\n[+] Saved {len(flows)} flows to {outfile}")
 
         # 4. Print extracted features
         for i, flow in enumerate(flows):
@@ -266,7 +302,7 @@ def streaming_mode(interface, checkpoint_path, storage_path, capture_interval, b
             print(f"    ({len(embeddings)/embed_time:.1f} flows/sec)")
             
             # Periodically save checkpoint
-            if self.stats['total_embeddings'] % 500 < len(embeddings):
+            if self.stats['total_embeddings'] % 200 < len(embeddings):
                 self._save_checkpoint()
         
         def _print_stats(self):
@@ -375,6 +411,21 @@ Examples:
         default=0,
         help="Number of packets to capture in basic mode (0 = until Ctrl+C)"
     )
+    parser.add_argument(
+        "--redis-host",
+        help="Redis host for storing flows (e.g., localhost)"
+    )
+    parser.add_argument(
+        "--redis-port",
+        type=int,
+        default=6379,
+        help="Redis port (default: 6379)"
+    )
+    parser.add_argument(
+        "--redis-stream",
+        default="flows:extracted",
+        help="Redis stream name (default: flows:extracted)"
+    )
     
     # Streaming mode arguments
     parser.add_argument(
@@ -418,7 +469,13 @@ Examples:
     
     # Run appropriate mode
     if args.basic:
-        basic_mode(args.interface, args.count)
+        basic_mode(
+            args.interface, 
+            args.count,
+            args.redis_host,
+            args.redis_port,
+            args.redis_stream
+        )
     else:  # streaming mode
         streaming_mode(
             interface=args.interface,

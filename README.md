@@ -23,11 +23,12 @@ The DeepTrace system is composed of the following key components:
 
 1.  **Packet Capture (`capture.py`):** Responsible for capturing packets from a live network interface or reading them from a PCAP file.
 2.  **Feature Extractor (`features.py`):** The core component that processes raw packets, groups them into bidirectional flows, and extracts the three tiers of features (Temporal, Statistical, and Protocol).
-3.  **Embedding Model (`model.py`):** A Transformer-based neural network that takes the extracted features and generates fixed-size 64-dimensional numerical embeddings for each flow.
-4.  **Vector Storage (`storage.py`):** FAISS-based vector database for storing flow embeddings with metadata, enabling fast similarity search and retrieval.
-5.  **Streaming Pipeline (`main.py`):** Real-time pipeline that continuously captures packets, generates embeddings, and updates the vector store.
-6.  **Traffic Generation Lab (`traffic_lab/`):** Docker-based environment with containers and scripts for generating diverse network traffic patterns.
-7.  **CLI (`cli.py`):** Interactive command-line interface for vector store querying and analysis.
+3.  **Redis Streams:** Message streaming for real-time flow data distribution and processing.
+4.  **Embedding Model (`model.py`):** A Transformer-based neural network that takes the extracted features and generates fixed-size 64-dimensional numerical embeddings for each flow.
+5.  **Vector Storage (`storage.py`):** FAISS-based vector database for storing flow embeddings with metadata, enabling fast similarity search and retrieval.
+6.  **Streaming Pipeline (`main.py`):** Real-time pipeline that continuously captures packets, generates embeddings, and updates the vector store.
+7.  **Traffic Generation Lab (`traffic_lab/`):** Docker-based environment with containers and scripts for generating diverse network traffic patterns.
+8.  **CLI (`cli.py`):** Interactive command-line interface for vector store querying and analysis.
 
 ## Setup and Installation
 
@@ -37,6 +38,7 @@ This project is developed on NixOS and uses a `shell.nix` file to provide a cons
 
 *   [Nix](https://nixos.org/download.html) package manager, or
 *   Python 3.8+ with pip
+*   Redis Server (for real-time streaming)
 *   Docker (for traffic generation lab)
 
 ### Installation
@@ -69,18 +71,25 @@ DeepTrace has two main modes of operation:
 
 ### Basic Mode: Single Capture
 
-Capture packets once, extract flows, and save to JSONL files:
+Capture packets once, extract flows, and save to Redis streams or JSONL files:
 
 ```bash
-# Capture 100 packets
-sudo PYTHONPATH=$PYTHONPATH python3 main.py -i wlo1 --basic --count 100
+# Capture 100 packets to Redis
+sudo   python3 main.py -i wlo1 --basic --count 100 --redis-host localhost
 
-# Capture continuously until Ctrl+C
-sudo PYTHONPATH=$PYTHONPATH python3 main.py -i wlo1 --basic
+# Capture to Redis with custom stream
+sudo   python3 main.py -i wlo1 --basic --count 100 --redis-host localhost --redis-stream myflows
+
+# Capture continuously to Redis until Ctrl+C
+sudo   python3 main.py -i wlo1 --basic --redis-host localhost
+
+# Original behavior: Save to JSONL files (fallback)
+sudo   python3 main.py -i wlo1 --basic --count 100
 ```
 
 *   Replace `wlo1` with your network interface (e.g., `eth0`, `docker0`).
-*   Flows are saved to `train/flows_TIMESTAMP.jsonl`.
+*   With Redis: Flows are saved to Redis streams for real-time processing
+*   Without Redis: Flows are saved to `train/flows_TIMESTAMP.jsonl` (fallback)
 
 ### CLI Mode: Interactive Vector Store Query
 
@@ -118,29 +127,56 @@ python3 -m deeptrace.cli -s ./vector_store --list 20
 - `help` - Show help
 - `exit`, `quit` - Exit
 
+### Redis Streams Mode: Real-time Flow Processing
+
+Capture packets and store flows in Redis streams for distributed processing:
+
+```bash
+# Basic Redis capture
+sudo python3 main.py -i wlo1 --basic --redis-host localhost
+
+# Capture with custom Redis settings
+sudo python3 main.py -i wlo1 --basic --redis-host redis.example.com --redis-port 6379 --redis-stream network_flows
+
+# Check Redis stream contents
+redis-cli xlen flows:extracted
+redis-cli xrange flows:extracted - +
+```
+
+**Redis Stream Architecture:**
+```
+Packet Capture → Redis Stream (packets:raw)
+     ↓
+Flow Extractor → Redis Stream (flows:extracted) 
+     ↓                           ↓
+Embedding Pipeline           Go REST API
+     ↓                           ↓  
+FAISS Storage                Web UI (Real-time)
+```
+
 ### Streaming Mode: Real-time Embedding Pipeline
 
 Continuously capture packets, generate embeddings, and store in vector database:
 
 ```bash
 # Basic streaming with default settings
-sudo PYTHONPATH=$PYTHONPATH python3 main.py -i wlo1 --stream \
+sudo   python3 main.py -i wlo1 --stream \
     -c models/checkpoints/model_epoch_50.pth
 
 # Advanced: Custom capture interval and batch size
-sudo PYTHONPATH=$PYTHONPATH python3 main.py -i wlo1 --stream \
+sudo   python3 main.py -i wlo1 --stream \
     -c models/checkpoints/model_epoch_50.pth \
     -t 5 \
     -b 100 \
     -s ./my_vector_store
 
 # Resume from existing vector store
-sudo PYTHONPATH=$PYTHONPATH python3 main.py -i wlo1 --stream \
+sudo   python3 main.py -i wlo1 --stream \
     -c models/checkpoints/model_epoch_50.pth \
     --load
 
 # Start web dashboard alongside streaming
-sudo PYTHONPATH=$PYTHONPATH python3 main.py -i wlo1 --stream \
+sudo   python3 main.py -i wlo1 --stream \
     -c models/checkpoints/model_epoch_50.pth &
 cd web && npm run dev
 ```
@@ -326,6 +362,7 @@ DeepTrace uses FAISS (Facebook AI Similarity Search) for efficient storage and r
 - **Persistent Storage**: Save/load vector stores to disk
 - **Streaming Buffer**: Batch optimization for real-time ingestion
 - **Protocol Filtering**: Query by protocol, IP, or custom filters
+- **Redis Streams Integration**: Real-time flow data distribution via Redis streams
 
 ## Project Structure
 
@@ -333,12 +370,13 @@ DeepTrace uses FAISS (Facebook AI Similarity Search) for efficient storage and r
 deeptrace/
 ├── deeptrace/
 │   ├── __init__.py
-│   ├── capture.py        # Packet capture logic
+│   ├── capture.py        # Packet capture logic (with Redis support)
 │   ├── features.py       # Flow and feature extraction
 │   ├── model.py          # Embedding model and inference
 │   ├── storage.py        # FAISS vector store
 │   ├── cli.py            # CLI interface for vector store query
 │   └── debug.py          # Debugging utilities
+|
 ├── models/
 │   ├── deeptrace.py      # Model training script
 │   ├── deeptrace.ipynb   # Training notebook
@@ -443,9 +481,33 @@ pip install -r requirements.txt
 - [ ] Export to multiple formats (Parquet, Arrow, etc.)
 - [ ] Real-time alerting system
 - [ ] Historical data analysis
-- [ ] Web dashboard for visualization
+- [ ] Redis Streams for real-time processing
 - [ ] User authentication and authorization
 
+
+## Future Development Plan
+
+### Phase 1: Real-time Streaming with Redis
+- **Redis Stream Integration**: Add Redis Streams for real-time flow distribution
+- **WebSocket UI**: Real-time dashboard with live network monitoring
+- **Hybrid Architecture**: Combine Redis (real-time) with FAISS (historical)
+
+### Phase 2: Enhanced RAG Capabilities  
+- **Hybrid Context Retrieval**: Combine real-time and historical context
+- **Natural Language Queries**: Advanced query parsing for security analysis
+- **Multi-modal Analysis**: Correlate network flows with other data sources
+
+### Phase 3: Production Deployment Features
+- **Dockerization**: Containerized deployment for all components
+- **Monitoring**: Health checks, metrics, and alerting
+- **High Availability**: Redis clustering and FAISS replication
+- **API Gateway**: RESTful APIs for integration with other tools
+
+### Phase 4: Advanced Analytics
+- **Machine Learning Integration**: Anomaly detection models
+- **Behavioral Profiling**: Automated traffic pattern analysis  
+- **Threat Intelligence**: Integration with external threat feeds
+- **Forensic Capabilities**: Advanced search and investigation tools
 
 ## License
 
